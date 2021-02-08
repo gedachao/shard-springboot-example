@@ -1,0 +1,79 @@
+mybatis:
+  mapper-locations: classpath*:mappings/**/*.xml
+  type-aliases-package: com.example.shardingtable.domain
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    map-underscore-to-camel-case: true
+
+spring:
+  application:
+    name: sharding-example
+  shardingsphere:
+    datasource:
+      names: ds0,ds1,ds2
+      ds0:
+        type: com.alibaba.druid.pool.DruidDataSource
+        driver-class-name: com.mysql.jdbc.Driver
+        url: jdbc:mysql://localhost:3306/cent0
+        username: root
+        password: root
+      ds1:
+        type: com.alibaba.druid.pool.DruidDataSource
+        driver-class-name: com.mysql.jdbc.Driver
+        url: jdbc:mysql://localhost:3306/cent1
+        username: root
+        password: root
+      ds2:
+        type: com.alibaba.druid.pool.DruidDataSource
+        driver-class-name: com.mysql.jdbc.Driver
+        url: jdbc:mysql://localhost:3306/cent2
+        username: root
+        password: root
+
+    sharding:
+      # 没有分库分表的数据都会路由到ds2
+      default-data-source-name: ds2
+      # 广播表
+      broadcast-tables:
+        - t_country
+      # 绑定表规则列表, 避免连接查询出现笛卡尔积
+      binding-tables:
+        - t_order,t_order_item
+      tables:
+        # t_order 分库分表
+        t_order:
+          actualDataNodes: ds$->{0..1}.t_order$->{0..1}
+          # 分库策略
+          databaseStrategy:
+            standard:
+              shardingColumn: user_id
+              preciseAlgorithmClassName: com.heilan.shard.strategy.HashModShardingAlgorithm
+          # 分表策略
+          tableStrategy:
+            standard:
+              shardingColumn: order_id
+              # 必填属性, 当指定分片策略为标准(standard)时，必须指定分片策略
+              preciseAlgorithmClassName: com.heilan.shard.example.conf.PreciseTableShard
+              # 可选配置，如不配置该属性，则只支持 =、IN查询，不支持 BETWEEN AND 范围查询；配置后则支持范围查询;且范围查询也仅支持分片键的范围查询
+              rangeAlgorithmClassName: com.heilan.shard.example.conf.RangeTableShard
+        # t_order_item 分库分表，由于t_order_item 是 t_order 附属子表，所以分库分表策略必须一致！
+        t_order_item:
+          actualDataNodes: ds$->{0..1}.t_order_item$->{0..1}
+          databaseStrategy:
+            standard:
+              shardingColumn: user_id
+              preciseAlgorithmClassName: com.heilan.shard.strategy.HashModShardingAlgorithm
+          tableStrategy:
+            standard:
+              shardingColumn: order_id
+              preciseAlgorithmClassName: com.heilan.shard.example.conf.PreciseTableShard
+              rangeAlgorithmClassName: com.heilan.shard.example.conf.RangeTableShard
+        # student 只分库
+        student:
+          actualDataNodes: ds$->{0..1}.student
+          databaseStrategy:
+            inline:
+              shardingColumn: id
+              algorithmExpression: ds$->{id % 2}
+
+
